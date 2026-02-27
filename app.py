@@ -51,6 +51,7 @@ async def predict(request: PredictionRequest):
     features = np.array(request.features).reshape(1, -1)
     scaled_features = scaler.transform(features)
     probability = model.predict_proba(scaled_features)[0][1]
+
     return PredictionResponse(
         risk_percentage=round(probability * 100, 2)
     )
@@ -87,8 +88,12 @@ class GoogleLogin(BaseModel):
 
 
 # ✅ RESEND EMAIL FUNCTION
-def send_email(to_email, name, otp):
+def send_email(to_email: str, name: str, otp: str):
     api_key = os.getenv("RESEND_API_KEY")
+
+    if not api_key:
+        print("❌ RESEND_API_KEY is not set in environment variables")
+        raise HTTPException(status_code=500, detail="Email service not configured")
 
     response = requests.post(
         "https://api.resend.com/emails",
@@ -103,14 +108,16 @@ def send_email(to_email, name, otp):
             "html": f"""
                 <h2>Hello {name},</h2>
                 <p>Your OTP is:</p>
-                <h1>{otp}</h1>
+                <h1 style="letter-spacing:5px;">{otp}</h1>
                 <p>This code expires in 5 minutes.</p>
             """,
         },
     )
 
+    print("RESEND STATUS:", response.status_code)
+    print("RESEND RESPONSE:", response.text)
+
     if response.status_code >= 400:
-        print(response.text)
         raise HTTPException(status_code=500, detail="Email sending failed")
 
 
@@ -185,6 +192,7 @@ async def google_login(req: GoogleLogin):
         "user": {"email": req.email, "name": req.name},
     }
 
+
 # ================= HISTORY =================
 
 class HistoryItemRequest(BaseModel):
@@ -203,6 +211,7 @@ async def save_history(req: HistoryItemRequest):
     })
 
     return {"status": "success", "message": "History saved"}
+
 
 @app.get("/history/{email}")
 async def get_history(email: str):
